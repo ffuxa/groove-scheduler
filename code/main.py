@@ -1,7 +1,6 @@
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, timezone, timedelta
-from collections import defaultdict
 from typing import Dict, List, Tuple
 from copy import deepcopy
 
@@ -207,7 +206,6 @@ def main():
     practice_end_time: datetime = datetime.fromtimestamp(1554163200, timezone.utc)     # datetime(2019, 4, 2, 0, tzinfo=timezone.utc)
     print(practice_start_time)
     print(practice_end_time)
-
 
     find_schedules(
         schedule_so_far, remaining_songs, all_schedules, practice_start_time, practice_end_time)
