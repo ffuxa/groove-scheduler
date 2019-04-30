@@ -30,6 +30,7 @@ class Student:
 
 
 class Song:
+    """Represents a song with a certain amount of students as members"""
     def __init__(self, name: str, leader: Student, members: List[Student],
                  practice_length: timedelta = timedelta(hours=1)):
         self.name: str = name
@@ -53,6 +54,15 @@ class Song:
 
 
 class Schedule:
+    """
+    Represents an ordering for the schedule, and holds how "good" this schedule is
+
+    For example, a schedule could look like this:
+        song_order = [Song1, Song2, Song4, Song3]
+
+    Meaning Song1 practices first for Song1.practice_length amount of time, then Song2 for
+        Song2.practice_length amount of time, and so on
+    """
     def __init__(self):
         self.song_order: List[Song] = []
         self.cost = None
@@ -66,8 +76,11 @@ class Schedule:
 
 def get_whenisgood_availability(event_id: str, response_code: str) -> List[Student]:
     """
-    Scrapes the html of when is good to get student availability.
+    Scrapes the html of whenisgood to get student availability.
     Source: https://github.com/yknot/WhenIsGoodScraper/
+
+    To see the actual availability, go to url:
+        http://whenisgood.net/<EVENT_ID>/results/<RESPONSE_CODE>
     """
     # get results page
     r = requests.get('http://whenisgood.net/{}/results/{}'.format(event_id,
@@ -100,46 +113,52 @@ def get_whenisgood_availability(event_id: str, response_code: str) -> List[Stude
 
 def find_schedules(schedule_so_far: Schedule, remaining_songs: List[Song],
                    all_schedules: List[Schedule], current_time: datetime, end_time: datetime):
+    """
+    Recursive function that finds all the perumations of scheduling order
+
+    Does not consider schedules that would go over the allocated amount of time (i.e. tries to fit
+    songs in the schedule until time runs out)
+    """
     schedule_complete: bool = True
 
+    # Iterate through all the songs that could be added to the schedule and add them IF it would not
+    #   exceed practice time
     for song in remaining_songs:
         if song.practice_length + current_time <= end_time:
             updated_schedule_so_far: Schedule = deepcopy(schedule_so_far)
             updated_schedule_so_far.song_order.append(song)
-
             updated_remaining_songs: List[Song] = deepcopy(remaining_songs)
             updated_remaining_songs.remove(song)
             current_time += song.practice_length
 
+            # Recursion!
             find_schedules(updated_schedule_so_far, updated_remaining_songs, all_schedules,
                            current_time, end_time)
+
             current_time -= song.practice_length
             schedule_complete = False
 
+    # Add schedule if the schedule is "full" (for example, if the schedule contains only 1 song but
+    # there is time for like, 3 more songs to practice, it isnt considered viable)
     if schedule_complete:
         all_schedules.append(schedule_so_far)
 
 
 def is_available(student: Student, start: datetime, end: datetime) -> bool:
-    # Time should always be split up by half hour segments. This function doesnt work otherwise!
+    # Time should always be split up by half hour segments. This function might not work otherwise!
     if (start.minute != 0 and start.minute != 30) or (end.minute != 0 and end.minute != 30):
         print("wtf?")
 
-    print("availability for:", student.name)
     while start < end:
-        print("start", start)
-
         if start not in student.availability:
-            print("student.availability", student.availability, "\nFALSE\n")
             return False
-
         start += TIMESTEP
-    print("TRUE\n")
 
     return True
 
 
 def find_schedule_costs(all_schedules: List[Schedule], practice_start_time: datetime) -> None:
+    """Updates all_schedule contents so that the schedule contains a cost associated with it"""
     for schedule in all_schedules:
         current_time: datetime = practice_start_time
         total_cost: float = 0
@@ -152,13 +171,11 @@ def find_schedule_costs(all_schedules: List[Schedule], practice_start_time: date
             # Assign large cost if song leader can't be at practice
             if not is_available(song.leader, start_song_time, end_song_time):
                 song_cost += 50
-                print("adding +50")
 
             # Assign cost for each member that cant make it to practice
             for member in song.members:
                 if not is_available(member, start_song_time, end_song_time):
                     song_cost += 1
-                    print("adding +1")
 
             # We square the song_cost because 1 song with 5 misses should be counted more heavily
             #  than 5 songs with 1 miss
@@ -174,7 +191,6 @@ def main():
     response_code: str = "tm3bs28"  # = sys.argv[2]
 
     students = sorted(get_whenisgood_availability(event_id, response_code), key=lambda s: s.name)
-    print(students)
     songs: List[Song] = [
         Song("Song 1", students[0], [students[1]]),
         Song("Song 2", students[1], [students[2]]),
